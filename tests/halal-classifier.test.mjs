@@ -117,7 +117,7 @@ test("uses explicit haram category metadata when ingredients are missing", () =>
 
   assert.equal(result.status, "haram");
   assert.equal(result.primaryEvidenceSource, "metadata");
-  assert.equal(result.evidence[0]?.matchedValue, "pork");
+  assert.equal(result.evidence[0]?.matchedValue, "pork products");
 });
 
 test("uses explicit alcoholic category metadata when ingredients are missing", () => {
@@ -142,10 +142,28 @@ test("uses prosecco and wine category metadata when ingredients are missing", ()
 
   assert.equal(result.status, "haram");
   assert.equal(result.primaryEvidenceSource, "metadata");
-  assert.match(
-    result.evidence[0]?.matchedValue ?? "",
-    /alcoholic beverages|wines|prosecco/,
-  );
+  assert.match(result.evidence[0]?.matchedValue ?? "", /alcoholic beverages/);
+});
+
+test("does not auto-classify non-alcoholic beer categories as haram", () => {
+  const result = classifyProduct("Water, Malt, Hops", [], {
+    productName: "Zero Malt Drink",
+    categories: "Non-alcoholic beers",
+  });
+
+  assert.equal(result.status, "halal");
+  assert.equal(result.primaryEvidenceSource, "ingredients");
+});
+
+test("uses blood-product OFF categories as haram metadata", () => {
+  const result = classifyProduct("", [], {
+    productName: "Traditional Sausage",
+    categories: "Blood sausages, black pudding",
+  });
+
+  assert.equal(result.status, "haram");
+  assert.equal(result.primaryEvidenceSource, "metadata");
+  assert.equal(result.evidence[0]?.matchedValue, "blood products");
 });
 
 test("falls back to mashbooh when no ingredients or metadata are available", () => {

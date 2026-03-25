@@ -42,6 +42,11 @@ interface IngredientRule {
   aliases: string[];
 }
 
+interface MetadataRule {
+  canonical: string;
+  aliases: string[];
+}
+
 export interface OFFIngredientItem {
   text?: string;
   id?: string;
@@ -270,6 +275,51 @@ const STRONG_HARAM_ALCOHOL_PRODUCT_TERMS = [
   "malt liquors",
 ] as const;
 
+const OFF_HARAM_PORK_TAXONOMY_RULES: MetadataRule[] = [
+  {
+    canonical: "pork products",
+    aliases: [
+      "pork",
+      "pork product",
+      "pork products",
+      "pig meat",
+      "swine",
+      "lard",
+      "prosciutto",
+      "pancetta",
+      "porchetta",
+    ],
+  },
+];
+
+const OFF_HARAM_PORK_QUALIFIED_TAXONOMY_TERMS = [
+  "bacon",
+  "ham",
+  "pepperoni",
+  "salami",
+  "chorizo",
+] as const;
+
+const OFF_HARAM_ALCOHOL_TAXONOMY_RULES: MetadataRule[] = [
+  {
+    canonical: "alcoholic beverages",
+    aliases: [...STRONG_HARAM_ALCOHOL_PRODUCT_TERMS],
+  },
+];
+
+const OFF_HARAM_OTHER_TAXONOMY_RULES: MetadataRule[] = [
+  {
+    canonical: "blood products",
+    aliases: [
+      "blood",
+      "blood sausage",
+      "blood sausages",
+      "blood products",
+      "black pudding",
+    ],
+  },
+];
+
 const NON_HARAM_QUALIFIERS = [
   "beef",
   "chicken",
@@ -432,6 +482,28 @@ function hasAlcoholProductMatch(text: string, term: string): boolean {
   );
 }
 
+function findMetadataRule(
+  rules: MetadataRule[],
+  text: string,
+): MetadataRule | null {
+  return (
+    rules.find((rule) =>
+      rule.aliases.some((alias) => hasKeywordMatch(text, alias)),
+    ) ?? null
+  );
+}
+
+function findAlcoholMetadataRule(
+  rules: MetadataRule[],
+  text: string,
+): MetadataRule | null {
+  return (
+    rules.find((rule) =>
+      rule.aliases.some((alias) => hasAlcoholProductMatch(text, alias)),
+    ) ?? null
+  );
+}
+
 function findStrongProductEvidence(
   metadata: ClassificationMetadata = {},
 ): ClassificationEvidence | null {
@@ -546,94 +618,131 @@ function findMetadataEvidence(
     return null;
   }
 
-  const matchedCategoryKeyword = STRONG_HARAM_PRODUCT_KEYWORDS.find((keyword) =>
-    hasKeywordMatch(normalizedCategories, keyword),
+  const matchedPorkCategoryRule = findMetadataRule(
+    OFF_HARAM_PORK_TAXONOMY_RULES,
+    normalizedCategories,
   );
 
-  if (matchedCategoryKeyword) {
+  if (matchedPorkCategoryRule) {
     return {
       source: "metadata",
       status: "haram",
-      rule: "strong_haram_category_metadata",
-      matchedValue: matchedCategoryKeyword,
+      rule: "haram_off_category_pork_taxonomy",
+      matchedValue: matchedPorkCategoryRule.canonical,
       explanation:
-        "Open Food Facts category metadata contains a strong haram signal, so the item is classified as haram before fallback rules.",
+        "Open Food Facts category taxonomy contains a dedicated pork-derived category term, so the item is classified as haram before fallback rules.",
     };
   }
 
-  const matchedQualifiedCategoryTerm =
-    STRONG_HARAM_QUALIFIED_PRODUCT_TERMS.find((term) =>
+  const matchedQualifiedPorkCategoryTerm =
+    OFF_HARAM_PORK_QUALIFIED_TAXONOMY_TERMS.find((term) =>
       hasQualifiedProductMatch(normalizedCategories, term),
     );
 
-  if (matchedQualifiedCategoryTerm) {
+  if (matchedQualifiedPorkCategoryTerm) {
     return {
       source: "metadata",
       status: "haram",
-      rule: "qualified_haram_category_metadata",
-      matchedValue: matchedQualifiedCategoryTerm,
+      rule: "haram_off_category_qualified_pork_taxonomy",
+      matchedValue: matchedQualifiedPorkCategoryTerm,
       explanation:
-        "Open Food Facts category metadata contains a strongly haram meat term without a non-haram qualifier, so the item is classified as haram before fallback rules.",
+        "Open Food Facts category taxonomy contains a strongly haram pork-meat term without a non-haram qualifier, so the item is classified as haram before fallback rules.",
     };
   }
 
-  const matchedAlcoholCategoryTerm = STRONG_HARAM_ALCOHOL_PRODUCT_TERMS.find(
-    (term) => hasAlcoholProductMatch(normalizedCategories, term),
+  const matchedAlcoholCategoryRule = findAlcoholMetadataRule(
+    OFF_HARAM_ALCOHOL_TAXONOMY_RULES,
+    normalizedCategories,
   );
 
-  if (matchedAlcoholCategoryTerm) {
+  if (matchedAlcoholCategoryRule) {
     return {
       source: "metadata",
       status: "haram",
-      rule: "strong_haram_alcohol_category_metadata",
-      matchedValue: matchedAlcoholCategoryTerm,
+      rule: "haram_off_category_alcohol_taxonomy",
+      matchedValue: matchedAlcoholCategoryRule.canonical,
       explanation:
-        "Open Food Facts category metadata contains a clearly alcoholic product term without a non-alcoholic qualifier, so the item is classified as haram before fallback rules.",
+        "Open Food Facts category taxonomy contains an alcoholic-drinks term, so the item is classified as haram before fallback rules.",
     };
   }
 
-  const matchedLabelKeyword = STRONG_HARAM_PRODUCT_KEYWORDS.find((keyword) =>
-    hasKeywordMatch(normalizedLabels, keyword),
+  const matchedOtherCategoryRule = findMetadataRule(
+    OFF_HARAM_OTHER_TAXONOMY_RULES,
+    normalizedCategories,
   );
 
-  if (matchedLabelKeyword) {
+  if (matchedOtherCategoryRule) {
     return {
       source: "metadata",
       status: "haram",
-      rule: "strong_haram_label_metadata",
-      matchedValue: matchedLabelKeyword,
+      rule: "haram_off_category_other_taxonomy",
+      matchedValue: matchedOtherCategoryRule.canonical,
       explanation:
-        "Open Food Facts label metadata contains a strong haram signal, so the item is classified as haram before fallback rules.",
+        "Open Food Facts category taxonomy contains another dedicated haram category term, so the item is classified as haram before fallback rules.",
     };
   }
 
-  const matchedQualifiedLabelTerm = STRONG_HARAM_QUALIFIED_PRODUCT_TERMS.find(
-    (term) => hasQualifiedProductMatch(normalizedLabels, term),
+  const matchedPorkLabelRule = findMetadataRule(
+    OFF_HARAM_PORK_TAXONOMY_RULES,
+    normalizedLabels,
   );
 
-  if (matchedQualifiedLabelTerm) {
+  if (matchedPorkLabelRule) {
     return {
       source: "metadata",
       status: "haram",
-      rule: "qualified_haram_label_metadata",
-      matchedValue: matchedQualifiedLabelTerm,
+      rule: "haram_off_label_pork_taxonomy",
+      matchedValue: matchedPorkLabelRule.canonical,
       explanation:
-        "Open Food Facts label metadata contains a strongly haram meat term without a non-haram qualifier, so the item is classified as haram before fallback rules.",
+        "Open Food Facts label taxonomy contains a dedicated pork-derived term, so the item is classified as haram before fallback rules.",
     };
   }
 
-  const matchedAlcoholLabelTerm = STRONG_HARAM_ALCOHOL_PRODUCT_TERMS.find(
-    (term) => hasAlcoholProductMatch(normalizedLabels, term),
-  );
+  const matchedQualifiedPorkLabelTerm =
+    OFF_HARAM_PORK_QUALIFIED_TAXONOMY_TERMS.find((term) =>
+      hasQualifiedProductMatch(normalizedLabels, term),
+    );
 
-  if (matchedAlcoholLabelTerm) {
+  if (matchedQualifiedPorkLabelTerm) {
     return {
       source: "metadata",
       status: "haram",
-      rule: "strong_haram_alcohol_label_metadata",
-      matchedValue: matchedAlcoholLabelTerm,
+      rule: "haram_off_label_qualified_pork_taxonomy",
+      matchedValue: matchedQualifiedPorkLabelTerm,
       explanation:
-        "Open Food Facts label metadata contains a clearly alcoholic product term without a non-alcoholic qualifier, so the item is classified as haram before fallback rules.",
+        "Open Food Facts label taxonomy contains a strongly haram pork-meat term without a non-haram qualifier, so the item is classified as haram before fallback rules.",
+    };
+  }
+
+  const matchedAlcoholLabelRule = findAlcoholMetadataRule(
+    OFF_HARAM_ALCOHOL_TAXONOMY_RULES,
+    normalizedLabels,
+  );
+
+  if (matchedAlcoholLabelRule) {
+    return {
+      source: "metadata",
+      status: "haram",
+      rule: "haram_off_label_alcohol_taxonomy",
+      matchedValue: matchedAlcoholLabelRule.canonical,
+      explanation:
+        "Open Food Facts label taxonomy contains an alcoholic-drinks term, so the item is classified as haram before fallback rules.",
+    };
+  }
+
+  const matchedOtherLabelRule = findMetadataRule(
+    OFF_HARAM_OTHER_TAXONOMY_RULES,
+    normalizedLabels,
+  );
+
+  if (matchedOtherLabelRule) {
+    return {
+      source: "metadata",
+      status: "haram",
+      rule: "haram_off_label_other_taxonomy",
+      matchedValue: matchedOtherLabelRule.canonical,
+      explanation:
+        "Open Food Facts label taxonomy contains another dedicated haram term, so the item is classified as haram before fallback rules.",
     };
   }
 
