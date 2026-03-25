@@ -225,6 +225,51 @@ const STRONG_HARAM_QUALIFIED_PRODUCT_TERMS = [
   "chorizo",
 ] as const;
 
+const STRONG_HARAM_ALCOHOL_PRODUCT_TERMS = [
+  "alcoholic beverage",
+  "alcoholic beverages",
+  "beer",
+  "beers",
+  "wine",
+  "wines",
+  "sparkling wine",
+  "sparkling wines",
+  "prosecco",
+  "whiskey",
+  "whisky",
+  "vodka",
+  "rum",
+  "gin",
+  "champagne",
+  "champagnes",
+  "brandy",
+  "cognac",
+  "bourbon",
+  "tequila",
+  "lager",
+  "lagers",
+  "ale",
+  "ales",
+  "stout",
+  "stouts",
+  "porter",
+  "porters",
+  "cider",
+  "ciders",
+  "sake",
+  "mead",
+  "soju",
+  "liqueur",
+  "liqueurs",
+  "liquor",
+  "liquors",
+  "spirits",
+  "hard seltzer",
+  "hard seltzers",
+  "malt liquor",
+  "malt liquors",
+] as const;
+
 const NON_HARAM_QUALIFIERS = [
   "beef",
   "chicken",
@@ -235,6 +280,26 @@ const NON_HARAM_QUALIFIERS = [
   "plant based",
   "plant-based",
   "halal",
+] as const;
+
+const NON_HARAM_ALCOHOL_QUALIFIERS = [
+  "non alcoholic",
+  "non alcohol",
+  "alcohol free",
+  "alcohol free",
+  "alcohol removed",
+  "dealcoholized",
+  "de alcoholized",
+  "zero alcohol",
+  "no alcohol",
+  "0 0",
+  "0 00",
+] as const;
+
+const NON_HARAM_ALCOHOL_PRODUCT_PHRASES = [
+  "root beer",
+  "ginger beer",
+  "birch beer",
 ] as const;
 
 const GENERIC_INGREDIENT_PHRASES = [
@@ -345,6 +410,28 @@ function hasQualifiedProductMatch(text: string, term: string): boolean {
   );
 }
 
+function hasAlcoholProductMatch(text: string, term: string): boolean {
+  if (!hasKeywordMatch(text, term)) {
+    return false;
+  }
+
+  if (
+    NON_HARAM_ALCOHOL_PRODUCT_PHRASES.some((phrase) =>
+      hasKeywordMatch(text, phrase),
+    )
+  ) {
+    return false;
+  }
+
+  const qualifierPatterns = NON_HARAM_ALCOHOL_QUALIFIERS.map(
+    (qualifier) => `\\b${escapeRegExp(qualifier)}\\s+${escapeRegExp(term)}\\b`,
+  );
+
+  return !qualifierPatterns.some((pattern) =>
+    new RegExp(pattern, "i").test(text),
+  );
+}
+
 function findStrongProductEvidence(
   metadata: ClassificationMetadata = {},
 ): ClassificationEvidence | null {
@@ -387,6 +474,21 @@ function findStrongProductEvidence(
       matchedValue: matchedQualifiedProductTerm,
       explanation:
         "The product name contains a strongly haram meat term without a non-haram qualifier, so the item is classified as haram before ingredient fallback rules.",
+    };
+  }
+
+  const matchedAlcoholProductTerm = STRONG_HARAM_ALCOHOL_PRODUCT_TERMS.find(
+    (term) => hasAlcoholProductMatch(normalizedProductName, term),
+  );
+
+  if (matchedAlcoholProductTerm) {
+    return {
+      source: "product_name",
+      status: "haram",
+      rule: "strong_haram_alcohol_product_name",
+      matchedValue: matchedAlcoholProductTerm,
+      explanation:
+        "The product name contains a clearly alcoholic product term without a non-alcoholic qualifier, so the item is classified as haram before ingredient fallback rules.",
     };
   }
 
@@ -475,6 +577,21 @@ function findMetadataEvidence(
     };
   }
 
+  const matchedAlcoholCategoryTerm = STRONG_HARAM_ALCOHOL_PRODUCT_TERMS.find(
+    (term) => hasAlcoholProductMatch(normalizedCategories, term),
+  );
+
+  if (matchedAlcoholCategoryTerm) {
+    return {
+      source: "metadata",
+      status: "haram",
+      rule: "strong_haram_alcohol_category_metadata",
+      matchedValue: matchedAlcoholCategoryTerm,
+      explanation:
+        "Open Food Facts category metadata contains a clearly alcoholic product term without a non-alcoholic qualifier, so the item is classified as haram before fallback rules.",
+    };
+  }
+
   const matchedLabelKeyword = STRONG_HARAM_PRODUCT_KEYWORDS.find((keyword) =>
     hasKeywordMatch(normalizedLabels, keyword),
   );
@@ -502,6 +619,21 @@ function findMetadataEvidence(
       matchedValue: matchedQualifiedLabelTerm,
       explanation:
         "Open Food Facts label metadata contains a strongly haram meat term without a non-haram qualifier, so the item is classified as haram before fallback rules.",
+    };
+  }
+
+  const matchedAlcoholLabelTerm = STRONG_HARAM_ALCOHOL_PRODUCT_TERMS.find(
+    (term) => hasAlcoholProductMatch(normalizedLabels, term),
+  );
+
+  if (matchedAlcoholLabelTerm) {
+    return {
+      source: "metadata",
+      status: "haram",
+      rule: "strong_haram_alcohol_label_metadata",
+      matchedValue: matchedAlcoholLabelTerm,
+      explanation:
+        "Open Food Facts label metadata contains a clearly alcoholic product term without a non-alcoholic qualifier, so the item is classified as haram before fallback rules.",
     };
   }
 

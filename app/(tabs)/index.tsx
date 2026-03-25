@@ -1,8 +1,14 @@
 import { Image } from "expo-image";
+import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import {
   ActivityIndicator,
   Keyboard,
@@ -35,6 +41,139 @@ const PANEL_SURFACE = "#353536";
 const CARD_SURFACE = "#040404";
 const SEARCH_BUTTON = "#2B1F18";
 const SEARCH_TEXT = "#8E8E93";
+
+interface LiquidSearchBarProps {
+  active: boolean;
+  canEdit: boolean;
+  inputRef?: RefObject<TextInput | null>;
+  onChangeText: (value: string) => void;
+  onCollapse?: () => void;
+  onFocus?: () => void;
+  onOpen?: () => void;
+  onSubmit: () => void;
+  placeholder: string;
+  showCollapse?: boolean;
+  value: string;
+}
+
+function LiquidSearchBar({
+  active,
+  canEdit,
+  inputRef,
+  onChangeText,
+  onCollapse,
+  onFocus,
+  onOpen,
+  onSubmit,
+  placeholder,
+  showCollapse = false,
+  value,
+}: LiquidSearchBarProps) {
+  const progress = useSharedValue(active ? 1 : 0);
+
+  useEffect(() => {
+    progress.value = withTiming(active ? 1 : 0, { duration: 180 });
+  }, [active, progress]);
+
+  const animatedShellStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: 0.985 + progress.value * 0.015 }],
+    boxShadow: `0 ${10 + progress.value * 6}px ${32 + progress.value * 12}px rgba(0, 0, 0, ${0.16 + progress.value * 0.1})`,
+  }));
+
+  return (
+    <View style={styles.liquidSearchRow}>
+      {showCollapse ? (
+        <TouchableOpacity
+          accessibilityLabel="Close search"
+          activeOpacity={0.85}
+          onPress={onCollapse}
+          style={styles.liquidCollapse}
+        >
+          <BlurView
+            intensity={30}
+            style={StyleSheet.absoluteFill}
+            tint="dark"
+          />
+          <IconSymbol color="#F8EDE8" name="chevron.left" size={24} />
+        </TouchableOpacity>
+      ) : null}
+
+      <Animated.View
+        style={[
+          styles.liquidShell,
+          active && styles.liquidShellActive,
+          animatedShellStyle,
+        ]}
+      >
+        <BlurView
+          intensity={active ? 44 : 32}
+          style={StyleSheet.absoluteFill}
+          tint="light"
+        />
+
+        <View style={styles.liquidFilterChip}>
+          <BlurView
+            intensity={active ? 22 : 14}
+            style={StyleSheet.absoluteFill}
+            tint="light"
+          />
+          <Image
+            contentFit="contain"
+            source={require("../../assets/eats-logo.png")}
+            style={styles.liquidFilterLogo}
+          />
+          <IconSymbol color="#271B14" name="chevron.right" size={16} />
+        </View>
+
+        {canEdit ? (
+          <TextInput
+            ref={inputRef}
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={onChangeText}
+            onFocus={onFocus}
+            onSubmitEditing={onSubmit}
+            placeholder={placeholder}
+            placeholderTextColor="#8C837C"
+            returnKeyType="search"
+            style={styles.liquidInput}
+            value={value}
+          />
+        ) : (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={onOpen}
+            style={styles.liquidDisplayTrigger}
+          >
+            <Text
+              numberOfLines={1}
+              selectable
+              style={[
+                styles.liquidDisplayText,
+                !value && styles.liquidDisplayPlaceholder,
+              ]}
+            >
+              {value || placeholder}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={canEdit ? onSubmit : onOpen}
+          style={styles.liquidSearchButton}
+        >
+          <BlurView
+            intensity={22}
+            style={StyleSheet.absoluteFill}
+            tint="dark"
+          />
+          <IconSymbol color="#FFFFFF" name="magnifyingglass" size={22} />
+        </TouchableOpacity>
+      </Animated.View>
+    </View>
+  );
+}
 
 export default function ScannerScreen() {
   const insets = useSafeAreaInsets();
@@ -201,59 +340,18 @@ export default function ScannerScreen() {
         <View
           style={[styles.searchModeHeader, { paddingTop: insets.top + 18 }]}
         >
-          <View style={styles.searchModeBarRow}>
-            <TouchableOpacity
-              accessibilityLabel="Close search"
-              activeOpacity={0.85}
-              onPress={exitSearchMode}
-              style={styles.searchModeCollapse}
-            >
-              <IconSymbol
-                color="#F8EDE8"
-                name="chevron.left"
-                size={26}
-                style={styles.searchModeCollapseIcon}
-              />
-            </TouchableOpacity>
-
-            <View style={styles.searchModeShell}>
-              <View style={styles.searchModeFilter}>
-                <Image
-                  contentFit="contain"
-                  source={require("../../assets/eats-logo.png")}
-                  style={styles.searchModeFilterLogo}
-                />
-                <IconSymbol
-                  color="#271B14"
-                  name="chevron.right"
-                  size={18}
-                  style={styles.searchModeFilterChevron}
-                />
-              </View>
-
-              <TextInput
-                ref={searchInputRef}
-                autoCapitalize="none"
-                autoCorrect={false}
-                onChangeText={setQuery}
-                onSubmitEditing={() => handleLookup(query)}
-                placeholder="Search"
-                placeholderTextColor="#958983"
-                returnKeyType="search"
-                style={styles.searchModeInput}
-                value={query}
-              />
-
-              <TouchableOpacity
-                activeOpacity={0.85}
-                disabled={isLoading}
-                onPress={() => handleLookup(query)}
-                style={styles.searchModeButton}
-              >
-                <IconSymbol color="#FFFFFF" name="magnifyingglass" size={24} />
-              </TouchableOpacity>
-            </View>
-          </View>
+          <LiquidSearchBar
+            active
+            canEdit
+            inputRef={searchInputRef}
+            onChangeText={setQuery}
+            onCollapse={exitSearchMode}
+            onFocus={undefined}
+            onSubmit={() => handleLookup(query)}
+            placeholder="Search"
+            showCollapse
+            value={query}
+          />
         </View>
 
         <View style={styles.searchModeBody}>
@@ -356,30 +454,15 @@ export default function ScannerScreen() {
             </View>
           ) : null}
 
-          <View style={styles.searchShell}>
-            <TextInput
-              ref={searchInputRef}
-              autoCapitalize="none"
-              autoCorrect={false}
-              onChangeText={setQuery}
-              onFocus={enterSearchMode}
-              onSubmitEditing={() => handleLookup(query)}
-              placeholder="Search for a product"
-              placeholderTextColor={SEARCH_TEXT}
-              returnKeyType="search"
-              style={styles.searchInput}
-              value={query}
-            />
-
-            <TouchableOpacity
-              activeOpacity={0.85}
-              disabled={isLoading}
-              onPress={() => handleLookup(query)}
-              style={styles.searchButton}
-            >
-              <IconSymbol color="#FFFFFF" name="magnifyingglass" size={22} />
-            </TouchableOpacity>
-          </View>
+          <LiquidSearchBar
+            active={false}
+            canEdit={false}
+            onChangeText={setQuery}
+            onOpen={enterSearchMode}
+            onSubmit={() => handleLookup(query)}
+            placeholder="Search for a product"
+            value={query}
+          />
         </View>
       </View>
 
@@ -406,74 +489,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#241B16",
     paddingHorizontal: 14,
     paddingBottom: 12,
-  },
-  searchModeBarRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  searchModeCollapse: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    borderCurve: "continuous",
-    borderWidth: 2,
-    borderColor: "#F8EDE8",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  searchModeCollapseIcon: {
-    transform: [{ rotate: "-90deg" }],
-  },
-  searchModeShell: {
-    flex: 1,
-    minHeight: 60,
-    borderRadius: 30,
-    borderCurve: "continuous",
-    backgroundColor: "#F7F4F2",
-    paddingLeft: 8,
-    paddingRight: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  searchModeFilter: {
-    height: 48,
-    minWidth: 96,
-    borderRadius: 24,
-    borderCurve: "continuous",
-    backgroundColor: "#EFE4DE",
-    paddingHorizontal: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  searchModeFilterLogo: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderCurve: "continuous",
-  },
-  searchModeFilterChevron: {
-    transform: [{ rotate: "90deg" }],
-  },
-  searchModeInput: {
-    flex: 1,
-    color: "#201915",
-    fontSize: 17,
-    lineHeight: 22,
-    fontWeight: "500",
-    paddingVertical: 12,
-  },
-  searchModeButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    borderCurve: "continuous",
-    backgroundColor: SEARCH_BUTTON,
-    alignItems: "center",
-    justifyContent: "center",
   },
   searchModeBody: {
     flex: 1,
@@ -669,30 +684,88 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: "center",
   },
-  searchShell: {
+  liquidSearchRow: {
     width: "100%",
-    marginTop: 6,
-    backgroundColor: "#F4F4F5",
-    borderRadius: 24,
-    borderCurve: "continuous",
-    paddingLeft: 16,
-    paddingRight: 8,
-    minHeight: 64,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
-  searchInput: {
+  liquidCollapse: {
+    width: 54,
+    height: 54,
+    overflow: "hidden",
+    borderRadius: 27,
+    borderCurve: "continuous",
+    borderWidth: 1.5,
+    borderColor: "rgba(248, 237, 232, 0.78)",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  liquidShell: {
     flex: 1,
-    color: "#1C1C1E",
+    overflow: "hidden",
+    borderRadius: 28,
+    borderCurve: "continuous",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.24)",
+    backgroundColor: "rgba(255,255,255,0.24)",
+    paddingLeft: 8,
+    paddingRight: 8,
+    minHeight: 62,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  liquidShellActive: {
+    borderColor: "rgba(255,255,255,0.48)",
+    backgroundColor: "rgba(255,255,255,0.34)",
+  },
+  liquidFilterChip: {
+    height: 46,
+    minWidth: 98,
+    overflow: "hidden",
+    borderRadius: 23,
+    borderCurve: "continuous",
+    backgroundColor: "rgba(239, 228, 222, 0.82)",
+    paddingHorizontal: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  liquidFilterLogo: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderCurve: "continuous",
+  },
+  liquidInput: {
+    flex: 1,
+    color: "#201915",
     fontSize: 17,
     lineHeight: 22,
     fontWeight: "500",
     paddingVertical: 12,
   },
-  searchButton: {
+  liquidDisplayTrigger: {
+    flex: 1,
+    justifyContent: "center",
+    minHeight: 50,
+  },
+  liquidDisplayText: {
+    color: "#201915",
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: "500",
+  },
+  liquidDisplayPlaceholder: {
+    color: SEARCH_TEXT,
+  },
+  liquidSearchButton: {
     width: 48,
     height: 48,
+    overflow: "hidden",
     borderRadius: 24,
     borderCurve: "continuous",
     backgroundColor: SEARCH_BUTTON,

@@ -13,6 +13,44 @@ test("classifies clearly haram product names as haram without ingredients", () =
   assert.equal(result.evidence[0]?.matchedValue, "pork");
 });
 
+test("classifies explicit alcoholic product names as haram", () => {
+  const result = classifyProduct("", [], {
+    productName: "Beer",
+  });
+
+  assert.equal(result.status, "haram");
+  assert.equal(result.primaryEvidenceSource, "product_name");
+  assert.equal(result.evidence[0]?.matchedValue, "beer");
+});
+
+test("classifies prosecco product names as haram", () => {
+  const result = classifyProduct("", [], {
+    productName: "Prosecco",
+  });
+
+  assert.equal(result.status, "haram");
+  assert.equal(result.primaryEvidenceSource, "product_name");
+  assert.equal(result.evidence[0]?.matchedValue, "prosecco");
+});
+
+test("does not auto-classify non-alcoholic beer as haram", () => {
+  const result = classifyProduct("Water, Malt, Hops", [], {
+    productName: "Non-Alcoholic Beer",
+  });
+
+  assert.equal(result.status, "halal");
+  assert.equal(result.primaryEvidenceSource, "ingredients");
+});
+
+test("does not auto-classify root beer as haram", () => {
+  const result = classifyProduct("Carbonated Water, Sugar, Flavor", [], {
+    productName: "Root Beer",
+  });
+
+  assert.equal(result.status, "halal");
+  assert.equal(result.primaryEvidenceSource, "ingredients");
+});
+
 test("does not auto-classify non-haram qualified meat terms as haram", () => {
   const result = classifyProduct("", [], {
     productName: "Turkey Bacon",
@@ -80,6 +118,34 @@ test("uses explicit haram category metadata when ingredients are missing", () =>
   assert.equal(result.status, "haram");
   assert.equal(result.primaryEvidenceSource, "metadata");
   assert.equal(result.evidence[0]?.matchedValue, "pork");
+});
+
+test("uses explicit alcoholic category metadata when ingredients are missing", () => {
+  const result = classifyProduct("", [], {
+    productName: "Premium Drink",
+    categories: "Beer, alcoholic beverages",
+  });
+
+  assert.equal(result.status, "haram");
+  assert.equal(result.primaryEvidenceSource, "metadata");
+  assert.match(
+    result.evidence[0]?.matchedValue ?? "",
+    /beer|alcoholic beverages/,
+  );
+});
+
+test("uses prosecco and wine category metadata when ingredients are missing", () => {
+  const result = classifyProduct("", [], {
+    productName: "Sparkling Bottle",
+    categories: "Alcoholic beverages, wines, prosecco",
+  });
+
+  assert.equal(result.status, "haram");
+  assert.equal(result.primaryEvidenceSource, "metadata");
+  assert.match(
+    result.evidence[0]?.matchedValue ?? "",
+    /alcoholic beverages|wines|prosecco/,
+  );
 });
 
 test("falls back to mashbooh when no ingredients or metadata are available", () => {
